@@ -6,53 +6,38 @@ using UnityEngine;
 public class WheelControl : MonoBehaviour
 {
     #region PROPERITIES
-    [SerializeField] CarControl _car;
-
-    [SerializeField] float _rotationSpeed = 360.0f; // Tốc độ quay của bánh xe (độ mỗi giây)
     [SerializeField] float _springStrength = 100.0f;
     [SerializeField] float _springDamper = 10.0f;
     [SerializeField] float _accelInput = 0.0f;
 
-    const float suspensionRestDist = 0.55f;
+    static float suspensionRestDist = 0.55f;
     bool _rayDidHit = false;
     float hitDistance = 0.0f;
 
     Rigidbody _rigi;
 
+    static float ACCEL_INPUT_VALUE = 2.0f;
+    public static float MAX_SPEED = 20.0f;
+    public static float MAX_TOP_ROTATE_ANGLE = 32.0f;
+    public static float MAX_BOTTOM_ROTATE_ANGLE = MAX_TOP_ROTATE_ANGLE / 4f;
 
-    [SerializeField] static float ACCEL_INPUT_VALUE = 5.0f;
-    [SerializeField] static float MAX_SPEED = 20.0f;
 
-    enum WHEEL_TYPE { TopWheel, BotWheel};
+    public enum WHEEL_TYPE { TopWheel, BotWheel};
     [SerializeField] WHEEL_TYPE _wheelType;
+
+    CarControl _car;
     #endregion
 
     #region UNITY CORE
-    // Start is called before the first frame update
-    void Awake()
-    {
-        _rigi = GetComponentInParent<Rigidbody>();
-    }
-
     void Start()
     {
-
+        _rigi = GetComponentInParent<Rigidbody>();
+        _car = _rigi.transform.GetComponent<CarControl>();
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
-        if (_car != null && _rigi != null)
-        {
-            if (_rigi.velocity.x > 0.1)
-            {
-                transform.Rotate(Vector3.down * _rotationSpeed * Time.fixedDeltaTime);
-            }
-            else if (_rigi.velocity.x < -0.1)
-            {
-                transform.Rotate(Vector3.up * _rotationSpeed * Time.fixedDeltaTime);
-            };
-        }
         CheckInputMove();
         CheckInputRotate();
         CheckHitGround();
@@ -66,10 +51,10 @@ public class WheelControl : MonoBehaviour
     {
         if (_rigi != null)
         {
-            if (Input.GetKey(KeyCode.W))
+            if (_car.IsAccel || Input.GetKey(KeyCode.W))
             {
                 _accelInput = ACCEL_INPUT_VALUE;
-            } else if (Input.GetKey(KeyCode.S))
+            } else if (_car.IsBrake || Input.GetKey(KeyCode.S))
             {
                 _accelInput = -ACCEL_INPUT_VALUE * 2.0f;
             } else
@@ -88,37 +73,45 @@ public class WheelControl : MonoBehaviour
             float currentAngle = currentRotation.y;
             if (currentAngle > 180) currentAngle -= 360;
 
-            if (Input.GetKey(KeyCode.A))
+            if (_car.IsRotateLeft || Input.GetKey(KeyCode.A))
             {
                 if (_wheelType == WHEEL_TYPE.TopWheel)
                 {
-                    if (currentAngle > -12f)
+                    if (currentAngle > -MAX_TOP_ROTATE_ANGLE)
                     {
-                        transform.Rotate(-Vector3.up * 30f * Time.fixedDeltaTime, Space.Self);
+                        float targetAngle = -MAX_TOP_ROTATE_ANGLE;
+                        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 1f * Time.fixedDeltaTime);
+                        transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                     }
                 }
                 else
                 {
-                    if (currentAngle > -2f)
+                    if (currentAngle > -MAX_BOTTOM_ROTATE_ANGLE)
                     {
-                        transform.Rotate(-Vector3.up * 5f * Time.fixedDeltaTime, Space.Self);
+                        float targetAngle = -MAX_BOTTOM_ROTATE_ANGLE;
+                        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 0.25f * Time.fixedDeltaTime);
+                        transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                     }
                 }
             }
-            else if (Input.GetKey(KeyCode.D))
+            else if (_car.IsRotateRight || Input.GetKey(KeyCode.D))
             {
                 if (_wheelType == WHEEL_TYPE.TopWheel)
                 {
-                    if (currentAngle < 12f)
+                    if (currentAngle < MAX_TOP_ROTATE_ANGLE)
                     {
-                        transform.Rotate(Vector3.up * 30f * Time.fixedDeltaTime, Space.Self);
+                        float targetAngle = MAX_TOP_ROTATE_ANGLE;
+                        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 1f * Time.fixedDeltaTime);
+                        transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                     }
                 }
                 else
                 {
-                    if (currentAngle < 2f)
+                    if (currentAngle < MAX_BOTTOM_ROTATE_ANGLE)
                     {
-                        transform.Rotate(Vector3.up * 5f * Time.fixedDeltaTime, Space.Self);
+                        float targetAngle = MAX_BOTTOM_ROTATE_ANGLE;
+                        float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 0.25f * Time.fixedDeltaTime);
+                        transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                     }
                 }
             }
@@ -130,13 +123,13 @@ public class WheelControl : MonoBehaviour
                 if (_wheelType == WHEEL_TYPE.TopWheel)
                 {
                     // Đối với bánh trên, trả về nhanh hơn
-                    float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 5f * Time.fixedDeltaTime);
+                    float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 4f * Time.fixedDeltaTime);
                     transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                 }
                 else
                 {
                     // Đối với bánh dưới, trả về chậm hơn
-                    float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 1.5f * Time.fixedDeltaTime);
+                    float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, 1f * Time.fixedDeltaTime);
                     transform.localRotation = Quaternion.Euler(new Vector3(currentRotation.x, newAngle, currentRotation.z));
                 }
             }
@@ -144,6 +137,7 @@ public class WheelControl : MonoBehaviour
 
         AddSteeringForce();
     }
+
 
     void CheckHitGround()
     {
@@ -181,27 +175,24 @@ public class WheelControl : MonoBehaviour
     void AddAccelerationForce()
     {
         var localVelocity = _rigi.transform.InverseTransformVector(_rigi.velocity);
-
         if (_rayDidHit)
         {
             Vector3 accelDir = transform.forward;
-            //if (_accelInput > 0.0f || (_accelInput < 0.0f && localVelocity.z > 0))
-            if (_accelInput != 0)
+            if (_accelInput > 0.0f || (_accelInput < 0.0f && localVelocity.z > -3.0f))
             {
                 float carSpeed = Vector3.Dot(_rigi.transform.forward, _rigi.velocity);
                 float normalizedSpeed = Mathf.Clamp01(Mathf.Abs(carSpeed) / MAX_SPEED);
-                Debug.Log(normalizedSpeed);
                 float avaiableTorque = PowerCurve(normalizedSpeed) * _accelInput;
                 _rigi.AddForceAtPosition(accelDir * avaiableTorque, transform.position);
                 Debug.DrawRay(transform.position, accelDir * avaiableTorque);
 
             }
-            //if (localVelocity.z < 0.0f)
-            //{
-            //    Vector3 currVel = _rigi.velocity;
-            //    currVel.z = 0.0f;
-            //    _rigi.velocity = currVel;
-            //}
+            if (localVelocity.z < -3.0f)
+            {
+                Vector3 currVel = localVelocity;
+                currVel.z = -3.0f;
+                localVelocity = currVel;
+            }
         }
         
     }
@@ -212,12 +203,11 @@ public class WheelControl : MonoBehaviour
         {
             Vector3 steeringDir = transform.right;
             Vector3 wheelWorldVel = _rigi.GetPointVelocity(transform.position);
-            Debug.Log(wheelWorldVel);
             float steeringVel = Vector3.Dot(steeringDir, wheelWorldVel);
-            float desiredVelChange = -steeringVel * 0.25f;
+            float desiredVelChange = -steeringVel * 0.3f;
             float desiredAccel = desiredVelChange / Time.fixedDeltaTime;
-            _rigi.AddForceAtPosition(steeringDir * 0.3f * desiredAccel, transform.position);
-            Debug.DrawRay(transform.position, steeringDir * 0.3f * desiredAccel);
+            _rigi.AddForceAtPosition(steeringDir * 0.1f * desiredAccel, transform.position);
+            Debug.DrawRay(transform.position, steeringDir * 0.1f * desiredAccel);
         }
     }
 
